@@ -1,0 +1,75 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {"type": "postgres", "uid": "security-lab-postgres"},
+      "fieldConfig": {"defaults": {"mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showPercentChange": false, "textMode": "auto", "wideLayout": true},
+      "pluginVersion": "13.1.0",
+      "targets": [{"datasource": {"type": "postgres", "uid": "security-lab-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT (report -> 'summary' ->> 'valid_events')::bigint AS value FROM latest_report_imports WHERE report_kind = 'zeek';", "refId": "A"}],
+      "title": "Eventi Zeek validi",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "postgres", "uid": "security-lab-postgres"},
+      "fieldConfig": {"defaults": {"mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showPercentChange": false, "textMode": "auto", "wideLayout": true},
+      "pluginVersion": "13.1.0",
+      "targets": [{"datasource": {"type": "postgres", "uid": "security-lab-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT (report -> 'summary' ->> 'valid_events')::bigint AS value FROM latest_report_imports WHERE report_kind = 'suricata';", "refId": "A"}],
+      "title": "Eventi Suricata validi",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "postgres", "uid": "security-lab-postgres"},
+      "fieldConfig": {"defaults": {"mappings": [], "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "id": 3,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showPercentChange": false, "textMode": "auto", "wideLayout": true},
+      "pluginVersion": "13.1.0",
+      "targets": [{"datasource": {"type": "postgres", "uid": "security-lab-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT (report -> 'suricata' ->> 'matched_events')::bigint AS value FROM latest_report_imports WHERE report_kind = 'correlation';", "refId": "A"}],
+      "title": "Eventi correlati",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "postgres", "uid": "security-lab-postgres"},
+      "fieldConfig": {"defaults": {"decimals": 3, "mappings": [], "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "id": 4,
+      "options": {"colorMode": "value", "graphMode": "none", "justifyMode": "auto", "orientation": "auto", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "showPercentChange": false, "textMode": "auto", "wideLayout": true},
+      "pluginVersion": "13.1.0",
+      "targets": [{"datasource": {"type": "postgres", "uid": "security-lab-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT (report -> 'timing' ->> 'average_delta_seconds')::double precision AS value FROM latest_report_imports WHERE report_kind = 'correlation';", "refId": "A"}],
+      "title": "Delta temporale medio",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "postgres", "uid": "security-lab-postgres"},
+      "fieldConfig": {"defaults": {}, "overrides": []},
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 6},
+      "id": 5,
+      "options": {"cellHeight": "sm", "footer": {"countRows": false, "fields": "", "reducer": ["sum"], "show": false}, "showHeader": true},
+      "pluginVersion": "13.1.0",
+      "targets": [{"datasource": {"type": "postgres", "uid": "security-lab-postgres"}, "editorMode": "code", "format": "table", "rawQuery": true, "rawSql": "SELECT report_kind AS \"Tipo\", source_filename AS \"File\", left(content_sha256, 12) AS \"Hash\", imported_at AS \"Importato alle\" FROM report_imports ORDER BY imported_at DESC, id DESC LIMIT 20;", "refId": "A"}],
+      "title": "Importazioni recenti",
+      "type": "table"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["security", "zeek", "suricata", "docker"],
+  "templating": {"list": []},
+  "time": {"from": "now-30d", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Linux Security Lab — Fase 10",
+  "uid": "linux-security-lab-overview",
+  "version": 1
+}
