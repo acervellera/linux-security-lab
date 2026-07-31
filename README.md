@@ -11,7 +11,7 @@ Laboratorio didattico per costruire un gateway di sicurezza su Ubuntu e imparare
 - rilevamento con Suricata;
 - analisi dei log con Zeek;
 - programmazione Python applicata alla sicurezza;
-- database e dashboard con Docker.
+- database PostgreSQL e dashboard Grafana con Docker.
 
 > Usare il progetto esclusivamente su reti, sistemi e dispositivi propri o esplicitamente autorizzati.
 
@@ -33,7 +33,10 @@ Telefono / dispositivo autorizzato
               |-- Suricata
               |-- Zeek
               |-- Python
-              `-- Docker per servizi applicativi
+              `-- Docker
+                    |-- importer Python
+                    |-- PostgreSQL
+                    `-- Grafana
                     |
                     v
         MediaTek interna usata come uplink
@@ -44,7 +47,7 @@ Telefono / dispositivo autorizzato
 
 ## Stato verificato
 
-Le prime nove fasi sono completate:
+Le prime dieci fasi sono completate:
 
 1. hardware e rete inventariati;
 2. piano IP definito;
@@ -54,9 +57,10 @@ Le prime nove fasi sono completate:
 6. catture tcpdump con DNS, ICMP, handshake TCP, NAT e PCAP controllato verificate;
 7. Suricata IDS passivo con alert controllato, avvio on demand e rotazione log verificato;
 8. Zeek 8.0.9 configurato come sensore standalone con log JSON DNS, TLS e QUIC verificati;
-9. analizzatori Python per Zeek e Suricata, report JSON, correlazione e test automatici verificati.
+9. analizzatori Python per Zeek e Suricata, report JSON, correlazione e test automatici verificati;
+10. importazione idempotente in PostgreSQL e dashboard Grafana Docker verificate.
 
-La fase 10, database e dashboard Docker, è la prossima attività.
+La fase 11, test finali, hardening, backup e ripristino, è la prossima attività.
 
 | Fase | Stato |
 |---:|---|
@@ -69,27 +73,8 @@ La fase 10, database e dashboard Docker, è la prossima attività.
 | 7. Suricata | COMPLETATA |
 | 8. Zeek | COMPLETATA |
 | 9. Python | COMPLETATA |
-| 10. Docker dashboard | PROSSIMA |
-| 11. Test e hardening | DA FARE |
-
-## Risultati della fase 8
-
-Sono stati verificati:
-
-- Zeek 8.0.9 e ZeekControl installati sotto `/opt/zeek`;
-- plugin di cattura AF_PACKET e Pcap;
-- nodo standalone sull'interfaccia hotspot;
-- rete locale limitata a `10.42.0.0/24`;
-- `digest_salt` personalizzato;
-- log JSON abilitati;
-- cattura manuale con 12.850 pacchetti e zero drop kernel;
-- assenza di gap TCP e byte mancanti nella prova manuale;
-- eventi `conn.log`, `dns.log`, `ssl.log` e `quic.log`;
-- avvio e arresto tramite ZeekControl;
-- archiviazione dei log all'arresto;
-- Zeek fermo e Suricata ripristinato al termine del test.
-
-La rotazione oraria è configurata, ma non è stata attesa un'ora completa; è stata verificata l'archiviazione gestita all'arresto.
+| 10. Docker dashboard | COMPLETATA |
+| 11. Test e hardening | PROSSIMA |
 
 ## Risultati della fase 9
 
@@ -99,6 +84,7 @@ Sono stati realizzati:
 python/read_zeek_json.py
 python/read_suricata_json.py
 python/correlate_logs.py
+python/analyze-lab
 python/tests/test_phase9.py
 ```
 
@@ -110,9 +96,55 @@ Funzionalità verificate:
 - report testuali e JSON;
 - esclusione di IP grezzi e UID dai report;
 - correlazione bidirezionale tramite 5-tupla e timestamp;
+- comando unico per coordinare le analisi;
 - 23 test automatici superati.
 
-Nella sessione con entrambi i sensori attivi, 33 delle 35 connessioni Zeek hanno trovato almeno un evento Suricata compatibile. Il delta temporale medio era 0,027 secondi.
+Nella sessione reale con entrambi i sensori attivi, 33 delle 35 connessioni Zeek hanno trovato almeno un evento Suricata compatibile. Il delta temporale medio era 0,027 secondi.
+
+## Risultati della fase 10
+
+È stato realizzato uno stack applicativo Docker separato dal routing del gateway:
+
+```text
+report JSON aggregati
+        |
+        v
+importer Python non root
+        |
+        v
+PostgreSQL 17
+        |
+        v
+grafana_reader (sola lettura)
+        |
+        v
+Grafana 13 su 127.0.0.1:3000
+```
+
+Verifiche principali:
+
+- `docker compose config --quiet` riuscito;
+- importer costruito ed eseguito come utente non root;
+- PostgreSQL con volume persistente e senza porta pubblicata;
+- tre report importati: Zeek, Suricata e correlazione;
+- hash SHA-256 e vincolo univoco per evitare duplicati;
+- seconda importazione idempotente;
+- account PostgreSQL `grafana_reader` in sola lettura;
+- datasource Grafana provisionato automaticamente;
+- dashboard `Linux Security Lab — Fase 10` caricata automaticamente;
+- Grafana pubblicato soltanto su `127.0.0.1:3000`;
+- backend Docker interno separato dalla rete frontend.
+
+Metriche del campione sintetico visualizzate nella dashboard:
+
+```text
+Eventi Zeek validi:       4
+Eventi Suricata validi:   8
+Eventi correlati:         5
+Delta temporale medio:    0,440 s
+```
+
+![Dashboard Grafana fase 10](docs/images/10-grafana-dashboard.svg)
 
 ## Metodo di lavoro
 
@@ -141,45 +173,30 @@ Una fase viene segnata come completata soltanto dopo una verifica reale. Gli asp
 
 Guide più recenti:
 
-- [`docs/steps/07-suricata.md`](docs/steps/07-suricata.md);
 - [`docs/steps/08-zeek.md`](docs/steps/08-zeek.md);
-- [`docs/steps/09-python-log-analysis.md`](docs/steps/09-python-log-analysis.md).
+- [`docs/steps/09-python-log-analysis.md`](docs/steps/09-python-log-analysis.md);
+- [`docs/steps/10-database-dashboard-docker.md`](docs/steps/10-database-dashboard-docker.md);
+- [`docs/steps/11-test-hardening-backup.md`](docs/steps/11-test-hardening-backup.md).
 
 ## Report pubblici
 
-Ogni fase completata possiede un solo report principale nella radice di `samples/`.
+Ogni fase completata possiede un report principale nella radice di `samples/`.
+
+Report più recenti:
 
 ```text
-samples/05-firewall-nftables-report.md
 samples/06-cattura-tcpdump-report.md
 samples/07-suricata-report.md
 samples/08-zeek-report.md
 samples/09-python-log-analysis-report.md
+samples/10-database-dashboard-docker-report.md
 ```
-
-Il report della fase 9 documenta analisi Zeek e Suricata, esportazione JSON, correlazione reale e test automatici.
 
 ## Report privati
 
 `reports/` contiene materiale locale e sensibile ed è esclusa tramite `.gitignore`.
 
-Report privati recenti:
-
-```text
-reports/06-cattura-tcpdump-private.md
-reports/07-suricata-private.md
-reports/08-zeek-private.md
-reports/09-python-log-analysis-private.md
-```
-
-Verifica:
-
-```bash
-git check-ignore -v reports/09-python-log-analysis-private.md
-git status --short
-```
-
-I PCAP e i log integrali non vengono pubblicati.
+I PCAP e i log integrali non vengono pubblicati. Anche `docker/.env` e `docker/data/` restano locali e ignorati da Git.
 
 ## Componenti verificati
 
@@ -191,28 +208,17 @@ scripts/security-gateway-firewall
 python/read_zeek_json.py
 python/read_suricata_json.py
 python/correlate_logs.py
-/etc/suricata/suricata.yaml
-/var/lib/suricata/rules/suricata.rules
-/var/lib/suricata/rules/local.rules
-/opt/zeek/etc/node.cfg
-/opt/zeek/etc/networks.cfg
-/opt/zeek/etc/zeekctl.cfg
-/opt/zeek/share/zeek/site/local.zeek
+python/analyze-lab
+docker/compose.yaml
+docker/database/init/001-schema.sql
+docker/database/002-grafana-reader.sql
+docker/importer/importer.py
+docker/grafana/provisioning/datasources/postgres.yaml
+docker/grafana/provisioning/dashboards/security-lab.yaml
+docker/grafana/dashboards/security-lab-overview.json
 ```
 
-Il servizio standard `nftables.service` non viene usato perché la configurazione predefinita contiene `flush ruleset`. Il progetto usa un servizio dedicato che gestisce soltanto le proprie tabelle.
-
-Suricata e Zeek vengono usati su richiesta durante le sessioni di laboratorio:
-
-```bash
-sudo systemctl start suricata
-sudo systemctl stop suricata
-
-sudo /opt/zeek/bin/zeekctl deploy
-sudo /opt/zeek/bin/zeekctl stop
-```
-
-Durante i test iniziali i due analizzatori sono stati eseguiti separatamente; nella fase 9 è stata inoltre verificata una sessione sovrapposta per la correlazione.
+Suricata e Zeek restano installati sull'host e vengono usati su richiesta durante le sessioni di laboratorio. Docker gestisce soltanto i servizi applicativi della fase 10.
 
 ## Struttura del repository
 
@@ -228,7 +234,6 @@ Durante i test iniziali i due analizzatori sono stati eseguiti separatamente; ne
 |   |-- 00-ROADMAP.md
 |   |-- 01-METODO-DI-LAVORO.md
 |   |-- 02-STATO-ATTUALE.md
-|   |-- TEMPLATE-FASE.md
 |   |-- images/
 |   `-- steps/
 |-- configs/
@@ -241,7 +246,7 @@ Durante i test iniziali i due analizzatori sono stati eseguiti separatamente; ne
 
 ## Privacy
 
-Non pubblicare password Wi-Fi, SSID domestici, token, chiavi, MAC, nomi completi `wlx...`, hostname o percorsi personali, IP e porte completi non necessari, query DNS personali, PCAP grezzi, log integrali, file `eve.json` completi, log Zeek integrali, SNI TLS, certificati o traffico appartenente a terzi.
+Non pubblicare password Wi-Fi, SSID domestici, token, chiavi, MAC, nomi completi `wlx...`, hostname o percorsi personali, IP e porte completi non necessari, query DNS personali, PCAP grezzi, log integrali, file `eve.json` completi, log Zeek integrali, SNI TLS, certificati, credenziali PostgreSQL/Grafana o traffico appartenente a terzi.
 
 ## Licenza
 
