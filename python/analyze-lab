@@ -236,13 +236,33 @@ find_latest_zeek_log() {
     printf '%s\n' "$result"
 }
 
+path_exists() {
+    local path="$1"
+
+    # Caso normale: il percorso è attraversabile dall'utente corrente.
+    if [[ -e "$path" ]]; then
+        return 0
+    fi
+
+    # I log Zeek possono trovarsi sotto directory accessibili soltanto a root.
+    # Verifichiamo quindi l'esistenza con sudo senza leggere il contenuto.
+    if command -v sudo >/dev/null 2>&1 && sudo test -e "$path"; then
+        return 0
+    fi
+
+    return 1
+}
+
 if [[ -z "$ZEEK_LOG" ]]; then
     log "Ricerca del conn.log Zeek più recente..."
     ZEEK_LOG="$(find_latest_zeek_log)"
 fi
 
-[[ -e "$ZEEK_LOG" ]] || die "log Zeek non trovato: $ZEEK_LOG"
-[[ -e "$SURICATA_LOG" ]] || die "log Suricata non trovato: $SURICATA_LOG"
+path_exists "$ZEEK_LOG" ||
+    die "log Zeek non trovato o non accessibile: $ZEEK_LOG"
+
+path_exists "$SURICATA_LOG" ||
+    die "log Suricata non trovato o non accessibile: $SURICATA_LOG"
 
 mkdir -p -- "$REPORT_DIR"
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/linux-security-lab.XXXXXX")"
