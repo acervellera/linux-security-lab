@@ -16,6 +16,7 @@ Ogni fase completata possiede un solo report pubblico principale nella radice di
 07-suricata-report.md
 08-zeek-report.md
 09-python-log-analysis-report.md
+10-database-dashboard-docker-report.md
 ```
 
 Non viene usata una sottocartella `samples/reports/`. Gli output supplementari sono ammessi soltanto quando aggiungono materiale utile senza duplicare il report principale.
@@ -32,69 +33,52 @@ Non viene usata una sottocartella `samples/reports/`. Gli output supplementari s
 
 ## Fase 6
 
-[`06-cattura-tcpdump-report.md`](06-cattura-tcpdump-report.md) riunisce:
-
-- filtri BPF e interpretazione di IP, porte e direzioni;
-- traffico UDP 443 compatibile con QUIC/HTTP/3;
-- DNS tradizionale e record `A`, `AAAA`, `CNAME`, `HTTPS`;
-- richieste ICMP senza risposta del client;
-- handshake TCP completo e principali flag TCP;
-- confronto prima e dopo il NAT;
-- PCAP limitato, snapshot di 128 byte e permessi privati;
-- lettura compatibile con AppArmor attivo;
-- privacy e conservazione dei dati.
+[`06-cattura-tcpdump-report.md`](06-cattura-tcpdump-report.md) riunisce filtri BPF, protocolli, handshake TCP, confronto prima/dopo NAT, PCAP privato limitato, AppArmor e privacy.
 
 Il PCAP grezzo non è pubblicato.
 
 ## Fase 7
 
-[`07-suricata-report.md`](07-suricata-report.md) documenta:
-
-- installazione di Suricata sull'host Ubuntu;
-- cattura AF_PACKET sull'interfaccia hotspot;
-- correzione dell'interfaccia predefinita `eth0`;
-- `HOME_NET` limitato a `10.42.0.0/24`;
-- caricamento delle regole senza errori;
-- eventi DNS, TLS, QUIC, HTTP, DHCP, mDNS e flow;
-- avvio e arresto su richiesta;
-- regola ICMP locale e alert ripetibile;
-- statistiche di cattura e drop;
-- rotazione reale di `eve.json`.
+[`07-suricata-report.md`](07-suricata-report.md) documenta installazione, AF_PACKET, regole, eventi applicativi, alert controllato, statistiche di cattura e rotazione reale di `eve.json`.
 
 Il file completo `eve.json`, i log integrali e i valori locali sensibili non sono pubblicati.
 
 ## Fase 8
 
-[`08-zeek-report.md`](08-zeek-report.md) documenta:
-
-- installazione di Zeek 8.0.9 sull'host Ubuntu;
-- plugin di cattura AF_PACKET e Pcap;
-- cattura manuale sull'interfaccia hotspot;
-- rete locale `10.42.0.0/24`;
-- log JSON `conn`, `dns`, `ssl` e `quic`;
-- assenza di drop kernel, gap TCP e byte mancanti nella prova manuale;
-- configurazione standalone tramite ZeekControl;
-- `digest_salt` personalizzato senza pubblicarne il valore;
-- avvio e arresto on demand;
-- archiviazione dei log all'arresto;
-- ripristino finale di Suricata.
+[`08-zeek-report.md`](08-zeek-report.md) documenta Zeek 8.0.9, plugin AF_PACKET/Pcap, log JSON, configurazione standalone, cattura senza drop kernel e gestione on demand.
 
 Il nome reale dell'interfaccia, gli IP client, le query DNS, gli SNI TLS, i certificati e i log integrali non sono pubblicati.
 
 ## Fase 9
 
-[`09-python-log-analysis-report.md`](09-python-log-analysis-report.md) documenta:
-
-- analizzatori Python per Zeek e Suricata;
-- lettura streaming di JSON Lines e gzip;
-- statistiche su connessioni, servizi, flow, alert e anomalie;
-- esportazione testuale e JSON;
-- esclusione di indirizzi IP e UID dai report;
-- correlazione bidirezionale tramite 5-tupla e timestamp;
-- sessione reale con 33 connessioni Zeek abbinate su 35;
-- 23 test automatici superati.
+[`09-python-log-analysis-report.md`](09-python-log-analysis-report.md) documenta analizzatori Python, lettura streaming, statistiche, esportazione JSON, esclusione di indirizzi IP e UID, correlazione tra sensori e 23 test automatici.
 
 I campioni tecnici usati dai test sono sotto `python/samples/`, sono sintetici e usano indirizzi riservati alla documentazione.
+
+## Fase 10
+
+[`10-database-dashboard-docker-report.md`](10-database-dashboard-docker-report.md) documenta:
+
+- PostgreSQL 17 con volume persistente;
+- schema `report_imports` e vista `latest_report_imports`;
+- importer Python non root;
+- importazione idempotente tramite SHA-256;
+- verifica delle dichiarazioni di privacy prima dell'inserimento;
+- tre report sintetici importati senza duplicati;
+- account PostgreSQL `grafana_reader` in sola lettura;
+- provisioning automatico del datasource Grafana;
+- provisioning automatico della dashboard;
+- rete Docker backend interna e frontend separata;
+- Grafana limitato a `127.0.0.1:3000`;
+- schermata revisionata della dashboard.
+
+Immagine pubblica:
+
+```text
+docs/images/10-grafana-dashboard.svg
+```
+
+La schermata mostra soltanto metriche aggregate del campione sintetico e non contiene password, token o traffico grezzo.
 
 ## Contenuti ammessi
 
@@ -108,6 +92,8 @@ I campioni tecnici usati dai test sono sotto `python/samples/`, sono sintetici e
 ## Contenuti non ammessi
 
 - password o PSK Wi-Fi;
+- password PostgreSQL o Grafana;
+- file `.env` reali;
 - SSID domestici;
 - MAC reali;
 - nome completo di interfacce `wlx...` che incorpora un MAC;
@@ -121,16 +107,17 @@ I campioni tecnici usati dai test sono sotto `python/samples/`, sono sintetici e
 - PCAP grezzi;
 - traffico appartenente a terzi.
 
-Questi elementi devono restare nella cartella locale `reports/`, ignorata da Git, oppure in una directory privata esterna al repository.
+Questi elementi devono restare nella cartella locale `reports/`, in `docker/.env`, in `docker/data/` o in una directory privata esterna al repository.
 
-## Immagini pubbliche della fase 4
+## Immagini pubbliche
 
 ```text
 docs/images/04-wifi-security-before.svg
 docs/images/04-wifi-security-after.svg
+docs/images/10-grafana-dashboard.svg
 ```
 
-Le immagini sono ricostruzioni anonimizzate.
+Le immagini vengono revisionate prima della pubblicazione.
 
 ## Regola per le fasi future
 
