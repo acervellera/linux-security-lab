@@ -1,66 +1,42 @@
 # Ubuntu Security Gateway Lab
 
-Laboratorio didattico per costruire un gateway di sicurezza su Ubuntu e imparare, passo dopo passo:
-
-- networking Linux;
-- hotspot Wi-Fi;
-- DHCP, routing e NAT;
-- firewall con `nftables`;
-- servizi e persistenza con systemd;
-- cattura del traffico con `tcpdump`;
-- rilevamento con Suricata;
-- analisi dei log con Zeek;
-- programmazione Python applicata alla sicurezza;
-- database PostgreSQL e dashboard Grafana con Docker.
+Laboratorio didattico e difensivo per costruire un gateway di sicurezza su Ubuntu e verificare, passo dopo passo, networking, filtering, network monitoring, log analysis, observability e hardening.
 
 > Usare il progetto esclusivamente su reti, sistemi e dispositivi propri o esplicitamente autorizzati.
 
-## Architettura principale
+## Architettura
 
 ```text
-Telefono / dispositivo autorizzato
-                    |
-                    v
-        Realtek USB usata come hotspot
-                    |
-                    v
-              Ubuntu gateway
-              |-- DHCP e DNS locale
-              |-- routing IPv4 e NAT
-              |-- nftables INPUT/FORWARD
-              |-- servizio systemd dedicato
-              |-- tcpdump
-              |-- Suricata
-              |-- Zeek
-              |-- Python
-              `-- Docker
-                    |-- importer Python
-                    |-- PostgreSQL
-                    `-- Grafana
-                    |
-                    v
-        MediaTek interna usata come uplink
-                    |
-                    v
-                 Internet
+Dispositivo autorizzato
+        |
+        v
+Realtek USB - hotspot Wi-Fi
+        |
+        v
+Ubuntu security gateway
+  |-- DHCP / DNS locale
+  |-- routing IPv4 + NAT
+  |-- nftables INPUT/FORWARD
+  |-- tcpdump
+  |-- Suricata IDS
+  |-- Zeek
+  |-- Python analytics + correlation
+  |-- hardening / audit
+  `-- Docker observability
+        |-- importer Python non root
+        |-- PostgreSQL 17
+        `-- Grafana 13 - 127.0.0.1:3000
+        |
+        v
+MediaTek interna - uplink
+        |
+        v
+Internet
 ```
 
 ## Stato verificato
 
-Le prime dieci fasi sono completate:
-
-1. hardware e rete inventariati;
-2. piano IP definito;
-3. hotspot reale verificato;
-4. DHCP, routing e NAT verificati;
-5. firewall `nftables` stateful reso persistente;
-6. catture tcpdump con DNS, ICMP, handshake TCP, NAT e PCAP controllato verificate;
-7. Suricata IDS passivo con alert controllato, avvio on demand e rotazione log verificato;
-8. Zeek 8.0.9 configurato come sensore standalone con log JSON DNS, TLS e QUIC verificati;
-9. analizzatori Python per Zeek e Suricata, report JSON, correlazione e test automatici verificati;
-10. importazione idempotente in PostgreSQL e dashboard Grafana Docker verificate.
-
-La fase 11, test finali, hardening, backup e ripristino, è la prossima attività.
+Le fasi 1-10 sono completate. La fase 11 ha completato e verificato il blocco di **hardening**, mentre backup e ripristino PostgreSQL restano da collaudare prima di dichiarare conclusa l'intera fase originariamente pianificata.
 
 | Fase | Stato |
 |---:|---|
@@ -72,13 +48,43 @@ La fase 11, test finali, hardening, backup e ripristino, è la prossima attivit�
 | 6. tcpdump | COMPLETATA |
 | 7. Suricata | COMPLETATA |
 | 8. Zeek | COMPLETATA |
-| 9. Python | COMPLETATA |
-| 10. Docker dashboard | COMPLETATA |
-| 11. Test e hardening | PROSSIMA |
+| 9. Python log analysis | COMPLETATA |
+| 10. PostgreSQL + Grafana Docker | COMPLETATA |
+| 11. Hardening | VERIFICATO |
+| 11. Backup / restore | DA COLLAUDARE |
 
-## Risultati della fase 9
+## Risultati tecnici principali
 
-Sono stati realizzati:
+### Network gateway e firewall
+
+Sono stati verificati:
+
+- hotspot Wi-Fi reale;
+- DHCP e DNS locale;
+- IPv4 forwarding e NAT;
+- firewall `nftables` stateful;
+- logging rate-limited;
+- servizio systemd dedicato e persistenza dopo reboot;
+- coesistenza con NetworkManager, Docker e libvirt.
+
+### tcpdump, Suricata e Zeek
+
+Il laboratorio produce osservabilità a più livelli:
+
+```text
+pacchetti -> tcpdump
+          -> Suricata IDS
+          -> Zeek structured logs
+          -> Python analysis/correlation
+```
+
+Suricata è stato verificato con AF_PACKET, oltre 52.000 regole, eventi applicativi e un alert controllato.
+
+Zeek 8.0.9 è stato configurato come sensore standalone con log JSON per connessioni, DNS, TLS e QUIC.
+
+### Python - analisi e correlazione
+
+Componenti principali:
 
 ```text
 python/read_zeek_json.py
@@ -88,22 +94,22 @@ python/analyze-lab
 python/tests/test_phase9.py
 ```
 
-Funzionalità verificate:
+Risultati della sessione reale sovrapposta:
 
-- lettura streaming di JSON Lines e gzip;
-- analisi di `conn.log` Zeek;
-- analisi di Suricata `eve.json`;
-- report testuali e JSON;
-- esclusione di IP grezzi e UID dai report;
-- correlazione bidirezionale tramite 5-tupla e timestamp;
-- comando unico per coordinare le analisi;
-- 23 test automatici superati.
+```text
+Connessioni Zeek:                       35
+Connessioni Zeek abbinate:              33
+Copertura connessioni Zeek:          94,29%
+Eventi Suricata:                       318
+Eventi Suricata correlati:             101
+Delta temporale medio:                0,027 s
+Delta temporale massimo:              0,330 s
+Test automatici Python:                  23
+```
 
-Nella sessione reale con entrambi i sensori attivi, 33 delle 35 connessioni Zeek hanno trovato almeno un evento Suricata compatibile. Il delta temporale medio era 0,027 secondi.
+### PostgreSQL e Grafana
 
-## Risultati della fase 10
-
-È stato realizzato uno stack applicativo Docker separato dal routing del gateway:
+La fase 10 aggiunge uno stack applicativo separato dal routing:
 
 ```text
 report JSON aggregati
@@ -115,96 +121,120 @@ importer Python non root
 PostgreSQL 17
         |
         v
-grafana_reader (sola lettura)
+grafana_reader - SELECT only
         |
         v
-Grafana 13 su 127.0.0.1:3000
+Grafana 13 - localhost only
 ```
 
 Verifiche principali:
 
-- `docker compose config --quiet` riuscito;
-- importer costruito ed eseguito come utente non root;
-- PostgreSQL con volume persistente e senza porta pubblicata;
-- tre report importati: Zeek, Suricata e correlazione;
-- hash SHA-256 e vincolo univoco per evitare duplicati;
-- seconda importazione idempotente;
-- account PostgreSQL `grafana_reader` in sola lettura;
-- datasource Grafana provisionato automaticamente;
-- dashboard `Linux Security Lab — Fase 10` caricata automaticamente;
-- Grafana pubblicato soltanto su `127.0.0.1:3000`;
-- backend Docker interno separato dalla rete frontend.
-
-Metriche del campione sintetico visualizzate nella dashboard:
-
-```text
-Eventi Zeek validi:       4
-Eventi Suricata validi:   8
-Eventi correlati:         5
-Delta temporale medio:    0,440 s
-```
+- PostgreSQL senza porta pubblicata sull'host;
+- volume persistente;
+- importazione idempotente tramite SHA-256;
+- importer non root, read-only, `cap_drop: ALL`, `no-new-privileges`;
+- account `grafana_reader` in sola lettura;
+- provisioning automatico del datasource e della dashboard;
+- backend Docker interno e frontend separato;
+- Grafana pubblicato soltanto su `127.0.0.1:3000`.
 
 ![Dashboard Grafana fase 10](docs/images/10-grafana-dashboard.svg)
 
+### Hardening verificato
+
+Il blocco di hardening ha introdotto un audit read-only e un profilo sysctl versionato:
+
+```text
+scripts/hardening_audit.py
+configs/sysctl/99-security-gateway-hardening.conf
+```
+
+Risultati finali principali:
+
+```text
+failed systemd units:        0
+IPv4 forwarding:             enabled - richiesto dal gateway
+rp_filter:                   loose mode
+accept ICMP redirects:       disabled
+send ICMP redirects:         disabled
+source routing:              disabled
+martian logging:             enabled
+SYN cookies:                 enabled
+SSH listener:                absent
+Avahi / UDP 5353:            disabled
+Docker socket:               restricted
+world-writable sensitive:    none found
+automatic security updates:  enabled
+```
+
+![Riepilogo hardening fase 11](docs/images/11-hardening-summary.svg)
+
+Durante il collaudo sono stati anche risolti due problemi reali:
+
+1. `logrotate.service` falliva per una configurazione Suricata duplicata lasciata nella directory attiva;
+2. `virtualbox.service` falliva perché Secure Boot rifiutava `vboxdrv`; VirtualBox, non necessario al lab, è stato disabilitato senza indebolire Secure Boot.
+
 ## Metodo di lavoro
 
-Ogni fase contiene:
+Ogni fase viene trattata come un piccolo ciclo di engineering:
 
 1. obiettivo;
-2. teoria necessaria;
-3. prerequisiti;
-4. comandi commentati;
-5. spiegazione delle opzioni;
-6. risultati realmente osservati;
-7. test di verifica;
-8. problemi incontrati;
-9. rollback;
-10. stato finale.
+2. teoria minima necessaria;
+3. inventario;
+4. modifica controllata;
+5. verifica positiva;
+6. verifica negativa quando utile;
+7. rollback;
+8. privacy review;
+9. report pubblico anonimizzato;
+10. aggiornamento dello stato del repository.
 
-Una fase viene segnata come completata soltanto dopo una verifica reale. Gli aspetti non testati attivamente vengono dichiarati.
+Una funzione viene dichiarata completata soltanto quando è stata verificata realmente.
 
 ## Da dove iniziare
 
 1. [Obiettivi e architettura](docs/OBIETTIVI_E_PROGETTO.md)
 2. [Stato attuale](docs/02-STATO-ATTUALE.md)
-3. [Roadmap completa](docs/00-ROADMAP.md)
-4. [Indice della documentazione](docs/README.md)
+3. [Roadmap](docs/00-ROADMAP.md)
+4. [Indice documentazione](docs/README.md)
 5. [Guide operative](docs/steps)
 
-Guide più recenti:
+Guide recenti:
 
-- [`docs/steps/08-zeek.md`](docs/steps/08-zeek.md);
-- [`docs/steps/09-python-log-analysis.md`](docs/steps/09-python-log-analysis.md);
-- [`docs/steps/10-database-dashboard-docker.md`](docs/steps/10-database-dashboard-docker.md);
-- [`docs/steps/11-test-hardening-backup.md`](docs/steps/11-test-hardening-backup.md).
+- [`docs/steps/08-zeek.md`](docs/steps/08-zeek.md)
+- [`docs/steps/09-python-log-analysis.md`](docs/steps/09-python-log-analysis.md)
+- [`docs/steps/10-database-dashboard-docker.md`](docs/steps/10-database-dashboard-docker.md)
+- [`docs/steps/11-test-hardening-backup.md`](docs/steps/11-test-hardening-backup.md)
 
 ## Report pubblici
 
-Ogni fase completata possiede un report principale nella radice di `samples/`.
+I report principali anonimizzati sono in [`samples/`](samples/).
 
-Report più recenti:
+Report recenti:
 
 ```text
-samples/06-cattura-tcpdump-report.md
 samples/07-suricata-report.md
 samples/08-zeek-report.md
 samples/09-python-log-analysis-report.md
 samples/10-database-dashboard-docker-report.md
+samples/11-hardening-report.md
 ```
 
 ## Report privati
 
-`reports/` contiene materiale locale e sensibile ed è esclusa tramite `.gitignore`.
+`reports/` contiene output locali e sensibili ed è esclusa tramite `.gitignore`.
 
-I PCAP e i log integrali non vengono pubblicati. Anche `docker/.env` e `docker/data/` restano locali e ignorati da Git.
+PCAP, log integrali, file `.env`, dati PostgreSQL locali e altre evidenze non necessarie alla documentazione pubblica non vengono pubblicati.
 
 ## Componenti verificati
 
 ```text
 configs/nftables/security-gateway-input-filter.nft
 configs/nftables/security-gateway-filter.nft
+configs/sysctl/99-security-gateway-hardening.conf
 configs/systemd/security-gateway-firewall.service
 scripts/security-gateway-firewall
+scripts/hardening_audit.py
 python/read_zeek_json.py
 python/read_suricata_json.py
 python/correlate_logs.py
@@ -218,36 +248,21 @@ docker/grafana/provisioning/dashboards/security-lab.yaml
 docker/grafana/dashboards/security-lab-overview.json
 ```
 
-Suricata e Zeek restano installati sull'host e vengono usati su richiesta durante le sessioni di laboratorio. Docker gestisce soltanto i servizi applicativi della fase 10.
-
-## Struttura del repository
-
-```text
-.
-|-- README.md
-|-- SECURITY.md
-|-- CONTRIBUTING.md
-|-- docs/
-|   |-- README.md
-|   |-- OBIETTIVI_E_PROGETTO.md
-|   |-- LAVORO_SVOLTO_E_PROSSIMI_PASSI.md
-|   |-- 00-ROADMAP.md
-|   |-- 01-METODO-DI-LAVORO.md
-|   |-- 02-STATO-ATTUALE.md
-|   |-- images/
-|   `-- steps/
-|-- configs/
-|-- scripts/
-|-- python/
-|-- docker/
-|-- samples/
-`-- reports/      privato e ignorato da Git
-```
-
 ## Privacy
 
-Non pubblicare password Wi-Fi, SSID domestici, token, chiavi, MAC, nomi completi `wlx...`, hostname o percorsi personali, IP e porte completi non necessari, query DNS personali, PCAP grezzi, log integrali, file `eve.json` completi, log Zeek integrali, SNI TLS, certificati, credenziali PostgreSQL/Grafana o traffico appartenente a terzi.
+Non pubblicare password Wi-Fi, SSID domestici, token, chiavi, MAC reali, nomi completi di interfacce che incorporano MAC, hostname, percorsi personali, PCAP grezzi, log integrali, query DNS personali, SNI TLS, certificati, credenziali PostgreSQL/Grafana o traffico appartenente a terzi.
+
+## Cosa resta da fare
+
+Per completare l'intera fase 11 originariamente prevista restano da verificare:
+
+- backup PostgreSQL con `pg_dump`;
+- ripristino in un database di prova;
+- procedura completa di recovery/smontaggio;
+- test end-to-end dedicati al backup/restore.
+
+Questi punti restano esplicitamente aperti invece di essere dichiarati completati senza prova.
 
 ## Licenza
 
-Il progetto è distribuito con licenza MIT.
+MIT.
