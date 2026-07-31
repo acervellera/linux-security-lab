@@ -1,0 +1,27 @@
+apiVersion: 1
+
+prune: true
+
+datasources:
+  - name: Security Lab PostgreSQL
+    uid: security-lab-postgres
+    type: postgres
+    access: proxy
+    url: database:5432
+    user: $__env{GRAFANA_DB_USER}
+
+    secureJsonData:
+      password: $__env{GRAFANA_DB_PASSWORD}
+
+    jsonData:
+      database: $__env{POSTGRES_DB}
+      sslmode: disable
+      postgresVersion: 1000
+      timescaledb: false
+      maxOpenConns: 5
+      maxIdleConns: 2
+      maxIdleConnsAuto: false
+      connMaxLifetime: 300
+
+    isDefault: true
+    editable: false
