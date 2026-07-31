@@ -1,6 +1,6 @@
 # Stato attuale del progetto
 
-Ultimo aggiornamento operativo: 21 luglio 2026.
+Ultimo aggiornamento operativo: 30 luglio 2026.
 
 ## Obiettivo principale
 
@@ -11,7 +11,7 @@ Costruire un gateway fisico Ubuntu nel quale:
 - Ubuntu esegue routing, firewall, NAT e monitoraggio;
 - Suricata e Zeek producono eventi e log;
 - Python analizza e correla i log;
-- Docker ospita database e dashboard senza gestire direttamente il routing principale.
+- Docker ospita importer, PostgreSQL e Grafana senza gestire il routing principale.
 
 ## Fasi completate
 
@@ -33,7 +33,7 @@ WIFI_BAND=2.4GHz
 WIFI_CHANNEL=6
 ```
 
-La subnet non si sovrappone alla rete domestica o alle reti Docker osservate.
+La subnet non si sovrappone alle reti osservate sul sistema.
 
 ### Fase 3 — Hotspot Realtek
 
@@ -43,143 +43,35 @@ Verificati modalità AP, client reali autenticati, gateway `10.42.0.1`, raggiung
 
 Completata il 16 luglio 2026.
 
-Risultati:
-
-- `ipv4.method=shared`;
-- `dnsmasq` per DHCP e DNS;
-- sequenza DHCP completa;
-- client con indirizzi `10.42.0.x`;
-- `net.ipv4.ip_forward=1`;
-- forwarding e masquerading osservati;
-- traffico prima e dopo il NAT;
-- DNS classico in chiaro;
-- TCP 443 e UDP 443;
-- dati cellulari disabilitati durante la verifica;
-- WPA2-RSN con CCMP/AES.
-
-Report:
-
-- [`../samples/04-dhcp-routing-nat-report.md`](../samples/04-dhcp-routing-nat-report.md);
-- [`../samples/04-dhcp-routing-nat-output.md`](../samples/04-dhcp-routing-nat-output.md).
+Verificati DHCP, DNS locale, `net.ipv4.ip_forward=1`, forwarding, masquerading, traffico prima e dopo il NAT, DNS classico, TCP/443, UDP/443 e WPA2-RSN/CCMP.
 
 ### Fase 5 — Firewall nftables
 
 Completata il 17 luglio 2026.
 
-Risultati:
-
-- filtro `INPUT` dedicato all'hotspot;
-- DHCP, DNS e ICMP necessari consentiti;
-- mDNS, WS-Discovery e accessi non previsti bloccati;
-- filtro `FORWARD` stateful;
-- traffico valido hotspot→Internet consentito;
-- sole risposte `established,related` consentite verso i client;
-- rete privata libvirt bloccata dall'hotspot;
-- logging con rate limit;
-- rollback e reload delle sole tabelle del progetto;
-- coesistenza con NetworkManager, Docker e libvirt;
-- script amministrativo e servizio systemd dedicato;
-- persistenza verificata dopo riavvio reale.
-
-Report:
-
-- [`../samples/05-firewall-nftables-report.md`](../samples/05-firewall-nftables-report.md).
+Verificati filtro `INPUT`, filtro `FORWARD` stateful, blocchi tra reti non previste, logging con rate limit, rollback, coesistenza con NetworkManager/Docker/libvirt, servizio systemd dedicato e persistenza dopo riavvio.
 
 ### Fase 6 — Cattura tcpdump
 
-Completata e verificata il 18 luglio 2026.
+Completata il 18 luglio 2026.
 
-Risultati:
-
-- filtri BPF applicati a un client autorizzato;
-- DNS tradizionale con record `A`, `AAAA`, `CNAME` e `HTTPS`;
-- richieste ICMP;
-- handshake TCP completo e principali flag;
-- traffico cifrato riconosciuto senza decifrazione;
-- stesso flusso osservato prima e dopo il NAT;
-- traduzione inversa e decremento TTL;
-- PCAP privato limitato a 20 record e snapshot di 128 byte;
-- formato Linux cooked v2 e permessi `600`;
-- AppArmor mantenuto attivo;
-- nessun PCAP grezzo pubblicato.
-
-```text
-Guida:           docs/steps/06-cattura-tcpdump.md
-Report pubblico: samples/06-cattura-tcpdump-report.md
-Report privato:  reports/06-cattura-tcpdump-private.md
-```
+Verificati filtri BPF, DNS, ICMP, handshake TCP, traffico cifrato, confronto prima/dopo NAT, decremento TTL, PCAP privato limitato, permessi `600` e AppArmor attivo.
 
 ### Fase 7 — Suricata IDS
 
-Completata e verificata il 20 luglio 2026.
+Completata il 20 luglio 2026.
 
-Risultati:
+Verificati Suricata 8.0.3, AF_PACKET, Hyperscan, `HOME_NET=10.42.0.0/24`, oltre 52.000 regole, eventi flow/DNS/TLS/QUIC/HTTP/DHCP, alert controllato, avvio on demand e rotazione reale di `eve.json`.
 
-- Suricata 8.0.3 installato sull'host Ubuntu;
-- `suricata-update` 1.3.7 e `jq` 1.8.1;
-- supporto AF_PACKET e Hyperscan;
-- errore iniziale causato da `eth0` inesistente diagnosticato;
-- `HOME_NET` impostato a `10.42.0.0/24`;
-- oltre 52.000 regole caricate senza errori;
-- eventi flow, QUIC, mDNS, DNS, TLS, HTTP, fileinfo e DHCP;
-- alert decoder documentato senza interpretarlo come prova di attacco;
-- servizio avviato su richiesta e disabilitato al boot;
-- regola ICMP locale con alert `allowed`;
-- prova gestita con drop finali dello `0,25%`;
-- rotazione reale di `eve.json` in `eve.json.1.gz`.
+### Fase 8 — Zeek
 
-```text
-Guida:           docs/steps/07-suricata.md
-Report pubblico: samples/07-suricata-report.md
-Report privato:  reports/07-suricata-private.md
-```
+Completata il 21 luglio 2026.
 
-### Fase 8 — Zeek e log di rete
+Verificati Zeek 8.0.9, ZeekControl, plugin AF_PACKET/Pcap, nodo standalone sull'hotspot, rete locale `10.42.0.0/24`, JSON logs, cattura senza drop kernel, log `conn`, `dns`, `ssl` e `quic`, archiviazione all'arresto e uso on demand.
 
-Completata e verificata il 21 luglio 2026.
+### Fase 9 — Analisi Python
 
-Risultati:
-
-- Zeek 8.0.9 e ZeekControl installati sotto `/opt/zeek`;
-- plugin AF_PACKET e Pcap verificati;
-- nodo standalone configurato sull'interfaccia hotspot;
-- `networks.cfg` limitato a `10.42.0.0/24`;
-- `PrivateAddressSpaceIsLocal = 0`;
-- `digest_salt` personalizzato senza pubblicarne il valore;
-- log JSON abilitati;
-- cattura manuale di 12.850 pacchetti;
-- zero pacchetti persi dal kernel;
-- zero gap TCP e zero byte mancanti;
-- log `conn`, `dns`, `ssl` e `quic` osservati;
-- controllo `zeekctl check` completato;
-- avvio e arresto gestiti tramite ZeekControl;
-- archiviazione dei log all'arresto;
-- Suricata ripristinato e attivo al termine.
-
-Prova gestita:
-
-```text
-conn.log    19 eventi
-dns.log     85 eventi
-ssl.log     13 eventi
-quic.log    13 eventi
-```
-
-Tutti i file controllati erano JSON validi.
-
-La rotazione oraria è configurata ma non è stata osservata per un'ora completa. È stata verificata l'archiviazione gestita all'arresto e la lettura dei file compressi.
-
-```text
-Guida:           docs/steps/08-zeek.md
-Report pubblico: samples/08-zeek-report.md
-Report privato:  reports/08-zeek-private.md
-```
-
-Il report privato e i log integrali non devono essere aggiunti a Git.
-
-### Fase 9 — Analisi Python dei log
-
-Completata e verificata il 21 luglio 2026.
+Completata il 21 luglio 2026.
 
 Programmi:
 
@@ -187,27 +79,92 @@ Programmi:
 python/read_zeek_json.py
 python/read_suricata_json.py
 python/correlate_logs.py
+python/analyze-lab
 python/tests/test_phase9.py
 ```
 
 Risultati:
 
-- lettura riga per riga di JSON Lines;
-- supporto gzip e standard input;
-- statistiche Zeek su connessioni, servizi, byte, durata e stati;
-- statistiche Suricata su eventi, flow, alert e anomalie;
-- report testuali e JSON;
-- indirizzi IP e UID esclusi dai report;
+- lettura streaming di JSON Lines e gzip;
+- statistiche Zeek e Suricata;
+- report aggregati senza IP grezzi o UID Zeek;
+- correlazione bidirezionale tramite 5-tupla e timestamp;
+- comando unico `analyze-lab`;
 - 23 test automatici superati;
 - sessione reale con 33 connessioni Zeek abbinate su 35;
 - 101 eventi Suricata correlati;
-- delta temporale medio di 0,027 secondi;
-- delta temporale massimo di 0,330 secondi.
+- delta temporale medio di 0,027 secondi.
+
+### Fase 10 — Database e dashboard Docker
+
+Completata e verificata il 30 luglio 2026.
+
+Architettura:
 
 ```text
-Guida:           docs/steps/09-python-log-analysis.md
-Report pubblico: samples/09-python-log-analysis-report.md
-Report privato:  reports/09-python-log-analysis-private.md
+report JSON aggregati
+        |
+        v
+importer Python non root
+        |
+        v
+PostgreSQL 17
+        |
+        v
+grafana_reader (SELECT only)
+        |
+        v
+Grafana 13
+        |
+        v
+127.0.0.1:3000
+```
+
+Componenti:
+
+```text
+docker/compose.yaml
+docker/.env.example
+docker/database/init/001-schema.sql
+docker/database/002-grafana-reader.sql
+docker/importer/Dockerfile
+docker/importer/requirements.txt
+docker/importer/importer.py
+docker/grafana/provisioning/datasources/postgres.yaml
+docker/grafana/provisioning/dashboards/security-lab.yaml
+docker/grafana/dashboards/security-lab-overview.json
+```
+
+Verifiche:
+
+- PostgreSQL avviato con healthcheck e volume persistente;
+- porta PostgreSQL non pubblicata sull'host;
+- importer Python eseguito come utente non root;
+- report montati in sola lettura;
+- tre report sintetici importati: Zeek, Suricata e correlazione;
+- hash SHA-256 e vincolo univoco per impedire duplicati;
+- seconda importazione idempotente;
+- account `grafana_reader` limitato alla sola lettura;
+- datasource Grafana provisionato automaticamente;
+- dashboard `Linux Security Lab — Fase 10` caricata automaticamente;
+- Grafana pubblicato soltanto su `127.0.0.1:3000`;
+- rete `backend` interna separata dalla rete `frontend`;
+- dashboard verificata nel browser.
+
+Metriche del campione visualizzate:
+
+```text
+Eventi Zeek validi:       4
+Eventi Suricata validi:   8
+Eventi correlati:         5
+Delta temporale medio:    0,440 s
+```
+
+![Dashboard Grafana](images/10-grafana-dashboard.svg)
+
+```text
+Guida:           docs/steps/10-database-dashboard-docker.md
+Report pubblico: samples/10-database-dashboard-docker-report.md
 ```
 
 ## Percorso verificato
@@ -218,6 +175,10 @@ Client 10.42.0.x
   -> nftables INPUT/FORWARD
   -> Suricata IDS e Zeek standalone
   -> analisi Python
+  -> report aggregati
+  -> importer Docker
+  -> PostgreSQL
+  -> Grafana locale
   -> NAT/masquerading NetworkManager
   -> MediaTek 192.168.10.x
   -> router
@@ -236,20 +197,9 @@ Client 10.42.0.x
 | 6. tcpdump | COMPLETATA | DNS, ICMP, handshake TCP, NAT, PCAP e AppArmor verificati |
 | 7. Suricata | COMPLETATA | IDS passivo, regole, alert controllato e logrotate verificati |
 | 8. Zeek | COMPLETATA | Log JSON DNS/TLS/QUIC, ZeekControl e archiviazione verificati |
-| 9. Python | COMPLETATA | Analisi, report JSON, correlazione e test verificati |
-| 10. Docker dashboard | PROSSIMA | Schema, importazione e dashboard da realizzare |
-| 11. Test e hardening | DA FARE | Isolamento client, casi limite, backup e ripristino finale |
-
-## Configurazione Wi-Fi verificata
-
-```text
-key-mgmt: wpa-psk
-proto:    rsn
-pairwise: ccmp
-group:    ccmp
-```
-
-Il collegamento radio è protetto da WPA2-RSN/CCMP. Il traffico HTTPS/QUIC resta protetto da TLS a livello applicativo.
+| 9. Python | COMPLETATA | Analisi, report JSON, correlazione, comando unico e test verificati |
+| 10. Docker dashboard | COMPLETATA | PostgreSQL, importer idempotente, Grafana e isolamento verificati |
+| 11. Test e hardening | PROSSIMA | Riavvio completo, backup, ripristino e hardening finale |
 
 ## Servizi e modalità operative
 
@@ -257,44 +207,31 @@ Il collegamento radio è protetto da WPA2-RSN/CCMP. Il traffico HTTPS/QUIC resta
 security-gateway-firewall.service: enabled / active (exited)
 nftables.service standard:         disabled / inactive
 Suricata al boot:                   disabled
-Suricata durante il laboratorio:    start/stop manuale
 Zeek al boot:                       non configurato
-Zeek durante il laboratorio:        deploy/stop manuale
 hotspot:                            avvio manuale
+PostgreSQL/Grafana:                 Docker Compose on demand
 ```
 
-Comandi principali:
+## Materiale pubblico più recente
 
-```bash
-sudo systemctl start suricata
-sudo systemctl stop suricata
+Guide:
 
-sudo /opt/zeek/bin/zeekctl deploy
-sudo /opt/zeek/bin/zeekctl stop
-```
-
-## Materiale pubblico
-
-Guide più recenti:
-
-- [`steps/06-cattura-tcpdump.md`](steps/06-cattura-tcpdump.md);
-- [`steps/07-suricata.md`](steps/07-suricata.md);
 - [`steps/08-zeek.md`](steps/08-zeek.md);
-- [`steps/09-python-log-analysis.md`](steps/09-python-log-analysis.md).
+- [`steps/09-python-log-analysis.md`](steps/09-python-log-analysis.md);
+- [`steps/10-database-dashboard-docker.md`](steps/10-database-dashboard-docker.md).
 
-Report principali:
+Report:
 
-- [`../samples/06-cattura-tcpdump-report.md`](../samples/06-cattura-tcpdump-report.md);
-- [`../samples/07-suricata-report.md`](../samples/07-suricata-report.md);
 - [`../samples/08-zeek-report.md`](../samples/08-zeek-report.md);
-- [`../samples/09-python-log-analysis-report.md`](../samples/09-python-log-analysis-report.md).
+- [`../samples/09-python-log-analysis-report.md`](../samples/09-python-log-analysis-report.md);
+- [`../samples/10-database-dashboard-docker-report.md`](../samples/10-database-dashboard-docker-report.md).
 
 ## Vincoli di pubblicazione
 
-Non pubblicare password Wi-Fi, SSID domestici, MAC reali, nome completo `wlx...`, hostname o percorsi personali, IP e porte complete non necessarie, PCAP grezzi, query DNS personali, log integrali, file `eve.json` completi, log Zeek integrali, SNI TLS, certificati o valore di `digest_salt`.
+Non pubblicare password Wi-Fi, SSID domestici, MAC reali, nome completo `wlx...`, hostname o percorsi personali, IP e porte complete non necessarie, PCAP grezzi, query DNS personali, log integrali, file `eve.json` completi, log Zeek integrali, SNI TLS, certificati, `digest_salt`, password PostgreSQL o password Grafana.
 
-Gli output completi restano in `reports/`, esclusa da Git. I PCAP restano in directory private esterne al repository.
+Gli output completi restano in `reports/`, esclusa da Git. `docker/.env` e `docker/data/` sono anch'essi esclusi dal repository.
 
 ## Prossima azione
 
-Passare alla fase 10: definire un formato di importazione idempotente, un database persistente e una dashboard Docker con volumi in sola lettura e privilegi minimi.
+Passare alla fase 11: arresto e riavvio completo dello stack, backup PostgreSQL, ripristino controllato, hardening finale e verifica del rollback.
