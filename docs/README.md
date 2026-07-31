@@ -11,65 +11,54 @@
 
 - [`OBIETTIVI_E_PROGETTO.md`](OBIETTIVI_E_PROGETTO.md): obiettivi e architettura fisica;
 - [`00-ROADMAP.md`](00-ROADMAP.md): fasi e criteri di completamento;
-- [`01-METODO-DI-LAVORO.md`](01-METODO-DI-LAVORO.md): comandi, verifiche, privacy e rollback;
+- [`01-METODO-DI-LAVORO.md`](01-METODO-DI-LAVORO.md): verifiche, privacy e rollback;
 - [`02-STATO-ATTUALE.md`](02-STATO-ATTUALE.md): stato operativo verificato;
-- [`LAVORO_SVOLTO_E_PROSSIMI_PASSI.md`](LAVORO_SVOLTO_E_PROSSIMI_PASSI.md): riepilogo e prossime attività;
-- [`TEMPLATE-FASE.md`](TEMPLATE-FASE.md): modello per nuove fasi.
+- [`LAVORO_SVOLTO_E_PROSSIMI_PASSI.md`](LAVORO_SVOLTO_E_PROSSIMI_PASSI.md): riepilogo e attività aperte.
 
-## Guide operative
-
-Ogni guida contiene comandi realmente eseguiti, spiegazione delle opzioni, risultati, problemi, verifiche, privacy e rollback. Una fase viene segnata `COMPLETATA` soltanto dopo una prova reale.
-
-Stato sintetico:
+## Stato sintetico
 
 ```text
-Fase 1  inventario hardware e rete      COMPLETATA
-Fase 2  topologia e indirizzamento      COMPLETATA
-Fase 3  hotspot Realtek                 COMPLETATA
-Fase 4  DHCP, routing e NAT             COMPLETATA
-Fase 5  firewall nftables               COMPLETATA
-Fase 6  cattura tcpdump                 COMPLETATA
-Fase 7  Suricata IDS                    COMPLETATA
-Fase 8  Zeek                            COMPLETATA
-Fase 9  analisi Python                  COMPLETATA
-Fase 10 database e dashboard Docker     COMPLETATA
-Fase 11 test, hardening e backup        PROSSIMA
+Fase 1   inventario hardware e rete      COMPLETATA
+Fase 2   topologia e indirizzamento      COMPLETATA
+Fase 3   hotspot Realtek                 COMPLETATA
+Fase 4   DHCP, routing e NAT             COMPLETATA
+Fase 5   firewall nftables               COMPLETATA
+Fase 6   cattura tcpdump                 COMPLETATA
+Fase 7   Suricata IDS                    COMPLETATA
+Fase 8   Zeek                            COMPLETATA
+Fase 9   analisi Python                  COMPLETATA
+Fase 10  database e dashboard Docker     COMPLETATA
+Fase 11A hardening                       VERIFICATA
+Fase 11B backup / restore                DA COLLAUDARE
 ```
-
-Guide delle fasi più recenti:
-
-- [`steps/08-zeek.md`](steps/08-zeek.md);
-- [`steps/09-python-log-analysis.md`](steps/09-python-log-analysis.md);
-- [`steps/10-database-dashboard-docker.md`](steps/10-database-dashboard-docker.md);
-- [`steps/11-test-hardening-backup.md`](steps/11-test-hardening-backup.md).
 
 ## Architettura sintetica
 
 ```text
 Client autorizzato
-  -> Realtek USB AP
+  -> hotspot Wi-Fi USB
   -> Ubuntu gateway
   -> nftables INPUT/FORWARD
-  -> Suricata IDS e Zeek
-  -> analisi Python
+  -> Suricata + Zeek
+  -> analisi/correlazione Python
   -> report aggregati
   -> importer Docker
   -> PostgreSQL
   -> Grafana locale
   -> NAT/masquerading
-  -> MediaTek uplink
+  -> uplink
   -> Internet
 ```
-
-La fase 10 ha aggiunto servizi applicativi Docker senza spostare nel container routing, firewall o sensori.
 
 ## Componenti software verificati
 
 ```text
 ../configs/nftables/security-gateway-input-filter.nft
 ../configs/nftables/security-gateway-filter.nft
+../configs/sysctl/99-security-gateway-hardening.conf
 ../configs/systemd/security-gateway-firewall.service
 ../scripts/security-gateway-firewall
+../scripts/hardening_audit.py
 ../python/read_zeek_json.py
 ../python/read_suricata_json.py
 ../python/correlate_logs.py
@@ -83,47 +72,51 @@ La fase 10 ha aggiunto servizi applicativi Docker senza spostare nel container r
 ../docker/grafana/dashboards/security-lab-overview.json
 ```
 
-## Fase 10 — Docker
+## Guide recenti
 
-Lo stack usa:
+- [`steps/08-zeek.md`](steps/08-zeek.md)
+- [`steps/09-python-log-analysis.md`](steps/09-python-log-analysis.md)
+- [`steps/10-database-dashboard-docker.md`](steps/10-database-dashboard-docker.md)
+- [`steps/11-test-hardening-backup.md`](steps/11-test-hardening-backup.md)
 
-- PostgreSQL 17 per la persistenza;
-- importer Python non root;
-- `JSONB` per i report aggregati;
-- SHA-256 e vincolo univoco per l'idempotenza;
-- account `grafana_reader` in sola lettura;
-- Grafana 13 con provisioning del datasource e della dashboard;
-- rete `backend` interna;
-- rete `frontend` separata;
-- binding Grafana soltanto su `127.0.0.1:3000`.
-
-Dashboard verificata:
+## Dashboard e hardening
 
 ![Dashboard Grafana fase 10](images/10-grafana-dashboard.svg)
 
+![Riepilogo hardening fase 11](images/11-hardening-summary.svg)
+
 ## Sample pubblici
 
-La cartella [`../samples`](../samples) contiene un report principale anonimizzato per ogni fase completata.
+Report recenti:
 
-Report più recenti:
+- [`../samples/08-zeek-report.md`](../samples/08-zeek-report.md)
+- [`../samples/09-python-log-analysis-report.md`](../samples/09-python-log-analysis-report.md)
+- [`../samples/10-database-dashboard-docker-report.md`](../samples/10-database-dashboard-docker-report.md)
+- [`../samples/11-hardening-report.md`](../samples/11-hardening-report.md)
 
-- [`../samples/07-suricata-report.md`](../samples/07-suricata-report.md);
-- [`../samples/08-zeek-report.md`](../samples/08-zeek-report.md);
-- [`../samples/09-python-log-analysis-report.md`](../samples/09-python-log-analysis-report.md);
-- [`../samples/10-database-dashboard-docker-report.md`](../samples/10-database-dashboard-docker-report.md).
+## Stato della fase 11
+
+Hardening verificato:
+
+- profilo sysctl applicato e testato;
+- routing/DNS/Internet preservati;
+- firewall verificato;
+- SSH non esposto;
+- logrotate riparato;
+- VirtualBox inutilizzato disabilitato senza disattivare Secure Boot;
+- Avahi/mDNS disabilitato;
+- Docker socket mantenuto ristretto;
+- permessi sensibili verificati;
+- 0 unità systemd fallite;
+- aggiornamenti automatici abilitati.
+
+Restano da collaudare backup PostgreSQL, restore di prova e recovery finale.
 
 ## Report e dati privati
 
 La cartella locale `reports/` è ignorata da Git e può contenere output integrali, nomi reali delle interfacce, percorsi locali e report personali.
 
-Anche questi elementi restano locali:
-
-```text
-docker/.env
-docker/data/
-```
-
-Non pubblicare password, token, MAC, PCAP grezzi, log integrali, query DNS personali, SNI TLS, certificati, valore di `digest_salt`, password PostgreSQL o password Grafana.
+Anche `docker/.env` e `docker/data/` restano locali.
 
 ## Regola di aggiornamento
 
@@ -133,6 +126,6 @@ Dopo ogni sessione aggiornare:
 2. `02-STATO-ATTUALE.md`;
 3. configurazioni o script realmente verificati;
 4. la roadmap quando cambia lo stato;
-5. il report pubblico principale della fase;
+5. il report pubblico principale;
 6. gli indici del repository;
 7. il report privato locale, senza aggiungerlo a Git.
