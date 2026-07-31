@@ -1,146 +1,246 @@
-# Fase 11 — Test finali, hardening e backup
+# Fase 11 - Test finali, hardening e backup
 
 ## Stato
 
 ```text
-PROSSIMA
+HARDENING: COMPLETATO E VERIFICATO
+BACKUP / RIPRISTINO: DA COLLAUDARE
 ```
 
-La fase 10 è completata e verificata. Questa fase deve ora collaudare il sistema completo, compreso lo stack Docker PostgreSQL/Grafana.
+La fase 11 era stata progettata come fase conclusiva unica. Il 31 luglio 2026 è stato completato e verificato il blocco di hardening dell'host. I test di backup/restore PostgreSQL restano invece aperti e non vengono dichiarati completati senza prova reale.
 
 ## Obiettivo
 
-Verificare che il gateway sia ripetibile, sicuro, osservabile e ripristinabile anche dopo errori o riavvii.
+Verificare che il gateway sia sicuro, osservabile e ripetibile senza perdere le funzioni necessarie al laboratorio.
 
-## Test end-to-end
+## Hardening - audit iniziale
 
-Il dispositivo di laboratorio deve:
+È stato creato:
 
-1. collegarsi all'hotspot;
-2. ricevere indirizzo, gateway e DNS corretti;
-3. raggiungere Ubuntu;
-4. raggiungere Internet attraverso la MediaTek;
-5. essere filtrato da `nftables`;
-6. comparire nelle catture `tcpdump`;
-7. generare log Suricata;
-8. generare log Zeek;
-9. comparire nei report Python;
-10. produrre report `*-latest.json` importabili;
-11. entrare in PostgreSQL senza duplicati inattesi;
-12. comparire nella dashboard Grafana.
-
-## Primo collaudo da eseguire
-
-### Arresto non distruttivo
-
-```bash
-docker compose \
-    --env-file docker/.env \
-    -f docker/compose.yaml \
-    down
+```text
+scripts/hardening_audit.py
 ```
 
-Il comando non deve rimuovere i volumi.
+Lo script è read-only e raccoglie:
 
-### Riavvio
+- kernel e distribuzione;
+- identità dell'utente;
+- account UID 0;
+- interfacce e routing;
+- socket TCP/UDP;
+- unità systemd fallite;
+- stato OpenSSH;
+- parametri sysctl di rete;
+- accesso a nftables;
+- proprietà del socket Docker.
 
-```bash
-docker compose \
-    --env-file docker/.env \
-    -f docker/compose.yaml \
-    up -d database grafana
+Il report completo viene scritto in `reports/`, directory privata e ignorata da Git.
+
+## Profilo sysctl
+
+Configurazione pubblica:
+
+```text
+configs/sysctl/99-security-gateway-hardening.conf
 ```
 
-Verificare:
+Valori finali verificati:
 
-```bash
-docker compose \
-    --env-file docker/.env \
-    -f docker/compose.yaml \
-    ps
-
-curl --fail --silent --show-error \
-    http://127.0.0.1:3000/api/health
+```text
+net.ipv4.ip_forward = 1
+net.ipv4.conf.all.rp_filter = 2
+net.ipv4.conf.default.rp_filter = 2
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+net.ipv4.conf.*.send_redirects = 0
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv4.conf.all.log_martians = 1
+net.ipv4.conf.default.log_martians = 1
+net.ipv4.tcp_syncookies = 1
 ```
 
-Dopo il riavvio le tre importazioni della fase 10 devono essere ancora presenti.
+### Scelta progettuale: forwarding attivo
 
-## Test negativi
+`net.ipv4.ip_forward` resta a `1` perché il sistema deve continuare a funzionare come gateway.
 
-- uplink disconnesso;
-- hotspot fermato;
-- forwarding disabilitato;
-- regola firewall volutamente restrittiva;
-- Suricata fermata;
-- Zeek fermato;
-- importer Python non eseguito;
-- database non disponibile;
-- Grafana non disponibile;
-- report `*-latest.json` mancante;
-- report con dichiarazione privacy non valida;
-- tentativo di scrittura tramite `grafana_reader`;
-- disco quasi pieno simulato in modo sicuro;
-- file di log malformato;
-- riavvio del gateway.
+### Reverse path filtering
 
-Ogni test deve indicare il comportamento atteso e quello osservato.
+`rp_filter=2` mantiene il loose mode, più adatto alla presenza simultanea di bridge Docker, reti libvirt e interfacce di laboratorio.
 
-## Hardening
+### ICMP redirect
 
-Valutare:
+Invio e ricezione degli ICMP Redirect sono stati disabilitati. È stato verificato che `send_redirects` fosse a zero anche sulle interfacce già presenti.
 
-- servizi in ascolto;
-- accesso amministrativo;
-- aggiornamenti di sicurezza;
-- permessi su configurazioni e log;
-- utenti dei servizi;
-- porte pubblicate da Docker;
-- reti Docker `backend` e `frontend`;
-- capability dei container;
-- `no-new-privileges`;
-- filesystem read-only dell'importer;
-- account PostgreSQL `grafana_reader`;
-- policy firewall;
-- protezione da log eccessivi;
-- rotazione;
-- spazio disco;
-- sincronizzazione oraria;
-- disattivazione dei componenti non usati.
+### Source routing
 
-## Comandi di inventario finale
+Il source routing IPv4 resta disabilitato.
+
+### Martian logging e SYN cookies
+
+Il logging dei pacchetti anomali è stato abilitato e i SYN cookies risultano attivi.
+
+## Verifica funzionale dopo hardening
+
+Dopo l'applicazione del profilo sono stati verificati:
 
 ```bash
-ss -lntup
+ip route
+ping -c 3 <gateway-upstream>
+ping -c 3 1.1.1.1
+getent hosts example.com
+```
+
+Risultati osservati:
+
+- routing presente;
+- gateway upstream raggiungibile;
+- Internet raggiungibile;
+- DNS funzionante.
+
+L'hardening non ha interrotto il ruolo di gateway.
+
+## Firewall nftables
+
+Verificato:
+
+```text
+security-gateway-firewall.service
+```
+
+Stato osservato:
+
+```text
+enabled
+active (exited)
+status=0/SUCCESS
+```
+
+Sono state lette con privilegi amministrativi le tabelle del progetto e confermate le regole stateful e i blocchi dedicati alla rete hotspot.
+
+## SSH
+
+Il server OpenSSH non risultava presente/attivo e non esisteva un listener TCP/22.
+
+Poiché SSH non è necessario al laboratorio, non è stato installato soltanto per poi doverlo hardenizzare.
+
+## Logrotate e Suricata
+
+L'audit iniziale mostrava:
+
+```text
+logrotate.service -> failed
+```
+
+Causa reale:
+
+- una configurazione di backup Suricata era rimasta dentro `/etc/logrotate.d/`;
+- logrotate interpretava anche il backup come configurazione attiva;
+- `fast.log` ed `eve.json` risultavano definiti due volte.
+
+Il backup è stato spostato fuori dalla directory attiva. Un test in debug non ha più mostrato duplicati e il servizio è poi terminato con `status=0/SUCCESS`.
+
+## VirtualBox e Secure Boot
+
+`virtualbox.service` falliva durante il caricamento di `vboxdrv`:
+
+```text
+Key was rejected by service
+```
+
+DKMS aveva costruito il modulo, ma Secure Boot era attivo. VirtualBox non viene usato dal laboratorio, che utilizza libvirt/QEMU.
+
+Decisione di hardening:
+
+- non disabilitare Secure Boot;
+- non registrare nuove chiavi soltanto per un componente inutilizzato;
+- disabilitare `virtualbox.service`.
+
+Dopo il reset dello stato fallito:
+
+```text
 systemctl --failed
-sudo nft list ruleset
-ip -4 address
-ip -4 route
-nmcli connection show --active
-docker compose --env-file docker/.env -f docker/compose.yaml ps
-docker network ls
-docker volume ls
+0 loaded units listed.
 ```
 
-Controllare in particolare che:
+## Avahi / mDNS
 
-- PostgreSQL non sia pubblicato sull'host;
-- Grafana sia pubblicato soltanto su `127.0.0.1:3000`;
-- nessun container monti `/var/run/docker.sock`;
-- nessun container sia `privileged`.
+`avahi-daemon` ascoltava su UDP/5353 ed eseguiva discovery mDNS su più interfacce.
 
-## Backup PostgreSQL
+Non essendo necessario al gateway, servizio e socket sono stati disabilitati.
 
-Creare un backup logico con `pg_dump` senza pubblicare password o dati privati.
+Verifica:
 
-Percorso previsto:
+```text
+avahi-daemon -> inactive / disabled
+UDP/5353 -> non in ascolto
+```
+
+## WSD / GVFS
+
+È stato identificato `wsdd` avviato in sessione utente da GVFS per Windows Service Discovery su UDP/3702.
+
+Non è stato rimosso perché legato a funzionalità desktop. La policy nftables del gateway contiene già un blocco UDP/3702 sulla rete hotspot.
+
+Stato: **accettato e documentato**.
+
+## Docker socket
+
+Il socket Docker risultava `root:docker`. L'utente normale non è stato aggiunto al gruppo `docker` soltanto per comodità.
+
+Questo evita di ampliare inutilmente i privilegi locali.
+
+## Permessi sensibili
+
+Sono stati verificati file di configurazione del progetto posseduti da `root:root` e non scrivibili da utenti generici.
+
+La ricerca di file world-writable nelle aree sensibili controllate e nel repository non ha restituito risultati.
+
+## Aggiornamenti
+
+`unattended-upgrades.service` risultava abilitato e la configurazione APT periodica era attiva.
+
+Durante il controllo erano presenti pacchetti aggiornabili, inclusi componenti di sicurezza. L'upgrade completo è stato lasciato a una finestra di manutenzione separata perché coinvolgeva Docker, libvirt, driver grafici, OpenSSL e componenti di sistema.
+
+## Validazione finale hardening
+
+Risultati:
+
+```text
+failed systemd units:        0
+IPv4 forwarding:             enabled
+rp_filter:                   loose mode
+accept ICMP redirects:       disabled
+send ICMP redirects:         disabled
+source routing:              disabled
+martian logging:             enabled
+SYN cookies:                 enabled
+SSH listener:                absent
+Avahi UDP/5353:              disabled
+Docker socket:               restricted
+world-writable sensitive:    none found
+automatic security updates:  enabled
+```
+
+![Riepilogo fase 11](../images/11-hardening-summary.svg)
+
+Report pubblico:
+
+```text
+samples/11-hardening-report.md
+```
+
+## Backup PostgreSQL - ancora da verificare
+
+Percorso privato previsto:
 
 ```text
 reports/backups/
 ```
 
-La directory `reports/` è ignorata da Git.
-
-Esempio operativo, da adattare e verificare durante la fase:
+Esempio da collaudare in una sessione dedicata:
 
 ```bash
 docker compose \
@@ -151,66 +251,31 @@ docker compose \
     > reports/backups/security-lab.dump
 ```
 
-Il backup deve essere verificato con un ripristino in un database di prova, non soltanto creato.
+Il backup non sarà considerato valido finché non verrà provato un ripristino in un database separato.
 
-## Backup generale
+## Ripristino - ancora da verificare
 
-Dovranno essere salvati almeno:
+La procedura prevista dovrà ricostruire in ordine:
 
-- profili NetworkManager esportabili o ricostruibili;
-- configurazione `nftables`;
-- configurazione Suricata;
-- configurazione Zeek;
-- codice Python;
-- `docker/compose.yaml`;
-- schema PostgreSQL;
-- provisioning Grafana;
-- backup database;
-- elenco dei pacchetti;
-- documentazione dei valori usati.
+1. interfacce e hotspot;
+2. DHCP, routing e NAT;
+3. firewall;
+4. Suricata;
+5. Zeek;
+6. Python;
+7. Docker;
+8. schema PostgreSQL;
+9. restore del database;
+10. Grafana;
+11. test end-to-end.
 
-I backup non devono includere password in chiaro o log personali non necessari.
+## Condizione per chiudere l'intera fase 11
 
-## Ripristino
+Sono ancora richiesti:
 
-La procedura deve poter ricostruire il laboratorio in ordine:
+- backup PostgreSQL verificato;
+- restore verificato;
+- procedura di recovery/smontaggio verificata;
+- documentazione finale di quei test.
 
-1. interfacce;
-2. hotspot;
-3. DHCP e indirizzamento;
-4. forwarding;
-5. firewall e NAT;
-6. Suricata;
-7. Zeek;
-8. Python;
-9. Docker;
-10. schema PostgreSQL;
-11. ripristino database;
-12. Grafana;
-13. test end-to-end.
-
-## Smontaggio del laboratorio
-
-Documentare anche come:
-
-- fermare i servizi;
-- disattivare l'hotspot;
-- rimuovere le sole regole del progetto;
-- disabilitare forwarding se non serve ad altro;
-- arrestare i container senza cancellare i volumi;
-- conservare o cancellare deliberatamente i dati;
-- ripristinare la configurazione iniziale.
-
-## Condizione di completamento
-
-Il progetto è completo quando:
-
-- tutti i test positivi passano;
-- i test negativi falliscono nel modo previsto;
-- il gateway riparte correttamente;
-- PostgreSQL conserva i dati dopo riavvio;
-- Grafana torna operativo dopo riavvio;
-- esiste un backup verificato;
-- esiste un ripristino verificato;
-- esiste una procedura di smontaggio;
-- la documentazione descrive soltanto risultati reali.
+La parte hardening è già completata e documentata; backup e restore restano esplicitamente aperti.
