@@ -32,16 +32,16 @@ Fase 6  cattura tcpdump                 COMPLETATA
 Fase 7  Suricata IDS                    COMPLETATA
 Fase 8  Zeek                            COMPLETATA
 Fase 9  analisi Python                  COMPLETATA
-Fase 10 database e dashboard Docker     PROSSIMA
+Fase 10 database e dashboard Docker     COMPLETATA
+Fase 11 test, hardening e backup        PROSSIMA
 ```
 
 Guide delle fasi più recenti:
 
-- [`steps/06-cattura-tcpdump.md`](steps/06-cattura-tcpdump.md);
-- [`steps/07-suricata.md`](steps/07-suricata.md);
 - [`steps/08-zeek.md`](steps/08-zeek.md);
 - [`steps/09-python-log-analysis.md`](steps/09-python-log-analysis.md);
-- [`steps/10-database-dashboard-docker.md`](steps/10-database-dashboard-docker.md).
+- [`steps/10-database-dashboard-docker.md`](steps/10-database-dashboard-docker.md);
+- [`steps/11-test-hardening-backup.md`](steps/11-test-hardening-backup.md).
 
 ## Architettura sintetica
 
@@ -52,14 +52,18 @@ Client autorizzato
   -> nftables INPUT/FORWARD
   -> Suricata IDS e Zeek
   -> analisi Python
+  -> report aggregati
+  -> importer Docker
+  -> PostgreSQL
+  -> Grafana locale
   -> NAT/masquerading
   -> MediaTek uplink
   -> Internet
 ```
 
-La fase 6 ha verificato il percorso prima e dopo il NAT. La fase 7 ha verificato eventi IDS, regole, alert controllato, avvio su richiesta e rotazione dei log. La fase 8 ha verificato log JSON di connessione, DNS, TLS e QUIC, cattura senza drop kernel e gestione on demand tramite ZeekControl. La fase 9 ha verificato analisi streaming, esportazione JSON e correlazione reale tra i sensori.
+La fase 10 ha aggiunto servizi applicativi Docker senza spostare nel container routing, firewall o sensori.
 
-## Configurazioni e script verificati
+## Componenti software verificati
 
 ```text
 ../configs/nftables/security-gateway-input-filter.nft
@@ -69,35 +73,33 @@ La fase 6 ha verificato il percorso prima e dopo il NAT. La fase 7 ha verificato
 ../python/read_zeek_json.py
 ../python/read_suricata_json.py
 ../python/correlate_logs.py
-/etc/suricata/suricata.yaml
-/var/lib/suricata/rules/suricata.rules
-/var/lib/suricata/rules/local.rules
-/opt/zeek/etc/node.cfg
-/opt/zeek/etc/networks.cfg
-/opt/zeek/etc/zeekctl.cfg
-/opt/zeek/share/zeek/site/local.zeek
+../python/analyze-lab
+../docker/compose.yaml
+../docker/database/init/001-schema.sql
+../docker/database/002-grafana-reader.sql
+../docker/importer/importer.py
+../docker/grafana/provisioning/datasources/postgres.yaml
+../docker/grafana/provisioning/dashboards/security-lab.yaml
+../docker/grafana/dashboards/security-lab-overview.json
 ```
 
-I file sotto `/etc`, `/var/lib` e `/opt` sono configurazioni locali del gateway e non vengono pubblicati integralmente quando contengono valori sensibili.
+## Fase 10 — Docker
 
-## Analisi Python
+Lo stack usa:
 
-Gli strumenti della fase 9 si trovano sotto [`../python`](../python):
+- PostgreSQL 17 per la persistenza;
+- importer Python non root;
+- `JSONB` per i report aggregati;
+- SHA-256 e vincolo univoco per l'idempotenza;
+- account `grafana_reader` in sola lettura;
+- Grafana 13 con provisioning del datasource e della dashboard;
+- rete `backend` interna;
+- rete `frontend` separata;
+- binding Grafana soltanto su `127.0.0.1:3000`.
 
-```text
-read_zeek_json.py
-read_suricata_json.py
-correlate_logs.py
-tests/test_phase9.py
-```
+Dashboard verificata:
 
-Risultato dei test:
-
-```text
-Ran 23 tests
-
-OK
-```
+![Dashboard Grafana fase 10](images/10-grafana-dashboard.svg)
 
 ## Sample pubblici
 
@@ -105,45 +107,23 @@ La cartella [`../samples`](../samples) contiene un report principale anonimizzat
 
 Report più recenti:
 
-- [`../samples/05-firewall-nftables-report.md`](../samples/05-firewall-nftables-report.md);
-- [`../samples/06-cattura-tcpdump-report.md`](../samples/06-cattura-tcpdump-report.md);
 - [`../samples/07-suricata-report.md`](../samples/07-suricata-report.md);
 - [`../samples/08-zeek-report.md`](../samples/08-zeek-report.md);
-- [`../samples/09-python-log-analysis-report.md`](../samples/09-python-log-analysis-report.md).
+- [`../samples/09-python-log-analysis-report.md`](../samples/09-python-log-analysis-report.md);
+- [`../samples/10-database-dashboard-docker-report.md`](../samples/10-database-dashboard-docker-report.md).
 
-Output supplementare della fase 4:
+## Report e dati privati
 
-- [`../samples/04-dhcp-routing-nat-output.md`](../samples/04-dhcp-routing-nat-output.md).
+La cartella locale `reports/` è ignorata da Git e può contenere output integrali, nomi reali delle interfacce, percorsi locali e report personali.
 
-Non viene usata una sottocartella `samples/reports/`. La struttura e le regole di anonimizzazione sono spiegate in [`../samples/README.md`](../samples/README.md).
-
-## Report privati
-
-La cartella locale:
+Anche questi elementi restano locali:
 
 ```text
-reports/
+docker/.env
+docker/data/
 ```
 
-è ignorata da Git e può contenere output integrali, nomi reali delle interfacce, percorsi locali e report personali.
-
-Report privati recenti:
-
-```text
-reports/06-cattura-tcpdump-private.md
-reports/07-suricata-private.md
-reports/08-zeek-private.md
-reports/09-python-log-analysis-private.md
-```
-
-Verifica obbligatoria:
-
-```bash
-git check-ignore -v reports/09-python-log-analysis-private.md
-git status --short
-```
-
-Il report privato non deve apparire tra i file da committare. I PCAP grezzi e i log integrali devono restare in aree private.
+Non pubblicare password, token, MAC, PCAP grezzi, log integrali, query DNS personali, SNI TLS, certificati, valore di `digest_salt`, password PostgreSQL o password Grafana.
 
 ## Regola di aggiornamento
 
