@@ -1,10 +1,8 @@
 # Sample pubblici anonimizzati
 
-La cartella `samples/` contiene esempi pubblici derivati da attività realmente eseguite e verificati prima della pubblicazione.
+La cartella `samples/` contiene report pubblici derivati da attività realmente eseguite e revisionati prima della pubblicazione.
 
-## Organizzazione
-
-Ogni fase completata possiede un solo report pubblico principale nella radice di `samples/`:
+## Report principali
 
 ```text
 01-inventario-hardware-rete-report.md
@@ -17,60 +15,28 @@ Ogni fase completata possiede un solo report pubblico principale nella radice di
 08-zeek-report.md
 09-python-log-analysis-report.md
 10-database-dashboard-docker-report.md
+11-hardening-report.md
 ```
 
-Non viene usata una sottocartella `samples/reports/`. Gli output supplementari sono ammessi soltanto quando aggiungono materiale utile senza duplicare il report principale.
+Ogni fase usa un solo report principale nella radice di `samples/`. Output aggiuntivi sono ammessi solo quando aggiungono valore senza duplicare il report principale.
 
-## Fase 4
+## Fasi recenti
 
-[`04-dhcp-routing-nat-report.md`](04-dhcp-routing-nat-report.md) documenta DHCP, DNS locale, forwarding IPv4, NAT, traffico prima e dopo la traduzione e sicurezza WPA2-RSN/CCMP.
+### Fase 7 - Suricata
 
-[`04-dhcp-routing-nat-output.md`](04-dhcp-routing-nat-output.md) contiene output brevi e revisionati collegati alla fase.
+[`07-suricata-report.md`](07-suricata-report.md) documenta AF_PACKET, regole, eventi applicativi, alert controllato, statistiche di cattura e rotazione di `eve.json`.
 
-## Fase 5
+### Fase 8 - Zeek
 
-[`05-firewall-nftables-report.md`](05-firewall-nftables-report.md) documenta filtri `INPUT` e `FORWARD`, test attivi dei blocchi, logging con rate limit, rollback, coesistenza con NetworkManager/Docker/libvirt, script amministrativo, servizio systemd e persistenza dopo riavvio.
+[`08-zeek-report.md`](08-zeek-report.md) documenta Zeek 8.0.9, log JSON, configurazione standalone, cattura e gestione on demand.
 
-## Fase 6
+### Fase 9 - Python
 
-[`06-cattura-tcpdump-report.md`](06-cattura-tcpdump-report.md) riunisce filtri BPF, protocolli, handshake TCP, confronto prima/dopo NAT, PCAP privato limitato, AppArmor e privacy.
+[`09-python-log-analysis-report.md`](09-python-log-analysis-report.md) documenta analizzatori Python, report JSON, privacy, correlazione tra sensori e 23 test automatici.
 
-Il PCAP grezzo non è pubblicato.
+### Fase 10 - PostgreSQL e Grafana
 
-## Fase 7
-
-[`07-suricata-report.md`](07-suricata-report.md) documenta installazione, AF_PACKET, regole, eventi applicativi, alert controllato, statistiche di cattura e rotazione reale di `eve.json`.
-
-Il file completo `eve.json`, i log integrali e i valori locali sensibili non sono pubblicati.
-
-## Fase 8
-
-[`08-zeek-report.md`](08-zeek-report.md) documenta Zeek 8.0.9, plugin AF_PACKET/Pcap, log JSON, configurazione standalone, cattura senza drop kernel e gestione on demand.
-
-Il nome reale dell'interfaccia, gli IP client, le query DNS, gli SNI TLS, i certificati e i log integrali non sono pubblicati.
-
-## Fase 9
-
-[`09-python-log-analysis-report.md`](09-python-log-analysis-report.md) documenta analizzatori Python, lettura streaming, statistiche, esportazione JSON, esclusione di indirizzi IP e UID, correlazione tra sensori e 23 test automatici.
-
-I campioni tecnici usati dai test sono sotto `python/samples/`, sono sintetici e usano indirizzi riservati alla documentazione.
-
-## Fase 10
-
-[`10-database-dashboard-docker-report.md`](10-database-dashboard-docker-report.md) documenta:
-
-- PostgreSQL 17 con volume persistente;
-- schema `report_imports` e vista `latest_report_imports`;
-- importer Python non root;
-- importazione idempotente tramite SHA-256;
-- verifica delle dichiarazioni di privacy prima dell'inserimento;
-- tre report sintetici importati senza duplicati;
-- account PostgreSQL `grafana_reader` in sola lettura;
-- provisioning automatico del datasource Grafana;
-- provisioning automatico della dashboard;
-- rete Docker backend interna e frontend separata;
-- Grafana limitato a `127.0.0.1:3000`;
-- schermata revisionata della dashboard.
+[`10-database-dashboard-docker-report.md`](10-database-dashboard-docker-report.md) documenta PostgreSQL, importer non root, idempotenza SHA-256, account `grafana_reader`, provisioning Grafana e isolamento Docker.
 
 Immagine pubblica:
 
@@ -78,16 +44,42 @@ Immagine pubblica:
 docs/images/10-grafana-dashboard.svg
 ```
 
-La schermata mostra soltanto metriche aggregate del campione sintetico e non contiene password, token o traffico grezzo.
+### Fase 11 - hardening
+
+[`11-hardening-report.md`](11-hardening-report.md) documenta il blocco di hardening realmente verificato:
+
+- audit read-only;
+- sysctl di rete;
+- mantenimento del forwarding richiesto dal gateway;
+- ICMP redirects disabilitati;
+- source routing disabilitato;
+- martian logging e SYN cookies;
+- firewall verificato;
+- SSH non esposto;
+- logrotate riparato;
+- VirtualBox inutilizzato disabilitato mantenendo Secure Boot;
+- Avahi/mDNS disabilitato;
+- Docker socket ristretto;
+- permessi sensibili controllati;
+- aggiornamenti automatici abilitati;
+- 0 unità systemd fallite nella validazione finale.
+
+Immagine pubblica:
+
+```text
+docs/images/11-hardening-summary.svg
+```
+
+Il report dichiara esplicitamente che backup PostgreSQL e restore restano da collaudare.
 
 ## Contenuti ammessi
 
-- report pubblici anonimizzati;
+- report anonimizzati;
 - output brevi e revisionati;
-- configurazioni prive di segreti;
-- estratti di log anonimizzati;
+- configurazioni senza segreti;
+- estratti sintetici;
 - dati sintetici chiaramente dichiarati;
-- screenshot ricostruiti o revisionati.
+- screenshot o infografiche revisionate.
 
 ## Contenuti non ammessi
 
@@ -96,18 +88,16 @@ La schermata mostra soltanto metriche aggregate del campione sintetico e non con
 - file `.env` reali;
 - SSID domestici;
 - MAC reali;
-- nome completo di interfacce `wlx...` che incorpora un MAC;
+- nomi completi di interfacce che incorporano MAC;
 - hostname e percorsi personali;
 - IP completi non necessari;
-- porte temporanee associate a sessioni reali;
 - query DNS personali;
 - SNI TLS e certificati non necessari;
-- valore di `digest_salt`;
 - log integrali;
 - PCAP grezzi;
 - traffico appartenente a terzi.
 
-Questi elementi devono restare nella cartella locale `reports/`, in `docker/.env`, in `docker/data/` o in una directory privata esterna al repository.
+Questi elementi restano in `reports/`, `docker/.env`, `docker/data/` o in storage privato esterno.
 
 ## Immagini pubbliche
 
@@ -115,14 +105,13 @@ Questi elementi devono restare nella cartella locale `reports/`, in `docker/.env
 docs/images/04-wifi-security-before.svg
 docs/images/04-wifi-security-after.svg
 docs/images/10-grafana-dashboard.svg
+docs/images/11-hardening-summary.svg
 ```
-
-Le immagini vengono revisionate prima della pubblicazione.
 
 ## Regola per le fasi future
 
-1. creare un solo report principale `NN-nome-fase-report.md`;
-2. aggiungere output separati soltanto quando utili e non duplicati;
-3. anonimizzare ogni valore locale o remoto non necessario;
-4. collegare il report dagli indici e dallo stato attuale;
+1. pubblicare un solo report principale per fase;
+2. aggiungere output separati solo quando utili;
+3. anonimizzare valori locali non necessari;
+4. collegare il report dagli indici;
 5. dichiarare chiaramente ciò che non è stato provato attivamente.
