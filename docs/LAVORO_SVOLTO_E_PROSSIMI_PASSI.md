@@ -2,62 +2,32 @@
 
 ## Funzione del documento
 
-Questo file riassume l'evoluzione reale del gateway fisico Ubuntu. Per lo stato più aggiornato usare [`02-STATO-ATTUALE.md`](02-STATO-ATTUALE.md); per comandi e rollback usare le guide in [`steps`](steps).
+Questo file riassume l'evoluzione reale del gateway Ubuntu. Per lo stato più aggiornato usare [`02-STATO-ATTUALE.md`](02-STATO-ATTUALE.md); per i comandi e le verifiche usare le guide in [`steps`](steps).
 
 ## Gateway fisico
 
 ```text
-Telefono / dispositivo autorizzato
-  -> SecurityGatewayLab
-  -> Realtek USB AP
+Dispositivo autorizzato
+  -> hotspot Wi-Fi USB
   -> Ubuntu gateway
-  -> nftables INPUT e FORWARD
-  -> Suricata IDS e Zeek standalone
-  -> analisi Python
+  -> nftables INPUT/FORWARD
+  -> Suricata + Zeek
+  -> analisi/correlazione Python
   -> report aggregati
   -> Docker: importer -> PostgreSQL -> Grafana
+  -> hardening host
   -> NAT/masquerading
-  -> MediaTek uplink
-  -> router
+  -> uplink Wi-Fi interno
   -> Internet
 ```
 
-## Fasi 1–5 completate — Gateway e firewall
+## Fasi 1-8
 
-Sono stati verificati inventario hardware, topologia, hotspot, DHCP/DNS, forwarding, NAT, WPA2-RSN/CCMP, firewall `nftables` stateful, logging, rollback, servizio systemd dedicato e persistenza dopo riavvio.
+Completate e verificate: inventario, topologia, hotspot, DHCP/DNS, forwarding, NAT, firewall nftables, tcpdump, Suricata e Zeek.
 
-## Fase 6 completata — tcpdump
+## Fase 9 - analisi Python
 
-Completata il 18 luglio 2026. Verificati filtri BPF, DNS, ICMP, handshake TCP, traffico cifrato, NAT sui due lati, decremento TTL, PCAP privato limitato, permessi `600` e AppArmor.
-
-```text
-Report pubblico: samples/06-cattura-tcpdump-report.md
-Report privato:  reports/06-cattura-tcpdump-private.md
-```
-
-## Fase 7 completata — Suricata IDS
-
-Completata il 20 luglio 2026. Verificati Suricata 8.0.3, AF_PACKET, Hyperscan, `HOME_NET`, oltre 52.000 regole, eventi applicativi, alert ICMP controllato, avvio on demand e rotazione reale di `eve.json`.
-
-```text
-Report pubblico: samples/07-suricata-report.md
-Report privato:  reports/07-suricata-private.md
-```
-
-## Fase 8 completata — Zeek
-
-Completata il 21 luglio 2026. Verificati Zeek 8.0.9, ZeekControl, plugin AF_PACKET/Pcap, nodo standalone, log JSON `conn`, `dns`, `ssl` e `quic`, cattura senza drop kernel e archiviazione all'arresto.
-
-```text
-Report pubblico: samples/08-zeek-report.md
-Report privato:  reports/08-zeek-private.md
-```
-
-## Fase 9 completata — Analisi Python
-
-Completata il 21 luglio 2026.
-
-Codice:
+Componenti:
 
 ```text
 python/read_zeek_json.py
@@ -67,121 +37,82 @@ python/analyze-lab
 python/tests/test_phase9.py
 ```
 
-Verificati lettura streaming, gzip, statistiche Zeek/Suricata, report JSON aggregati senza IP grezzi o UID Zeek, correlazione tramite 5-tupla e timestamp e 23 test automatici.
-
-Sessione reale sovrapposta:
+Risultati reali:
 
 ```text
 Connessioni Zeek:                       35
 Connessioni Zeek abbinate:              33
+Copertura connessioni Zeek:          94,29%
 Eventi Suricata:                       318
 Eventi Suricata correlati:             101
-Copertura connessioni Zeek:          94,29%
 Delta temporale medio:                0,027 s
 Delta temporale massimo:              0,330 s
+Test automatici:                         23
 ```
 
-Durante l'avvio della fase 10 è stato corretto un caso reale in `analyze-lab`: un log Zeek trovato con `sudo find` poteva risultare non visibile al successivo `[[ -e ... ]]` eseguito come utente normale. Il controllo usa ora `sudo test -e` quando necessario.
+Report pubblico: `samples/09-python-log-analysis-report.md`.
 
-```text
-Report pubblico: samples/09-python-log-analysis-report.md
-Report privato:  reports/09-python-log-analysis-private.md
-```
-
-## Fase 10 completata — Database e dashboard Docker
+## Fase 10 - database e dashboard Docker
 
 Completata e verificata il 30 luglio 2026.
 
-### Stack
+Lo stack usa:
 
 ```text
-report JSON aggregati
-        |
-        v
-importer Python non root
-        |
-        v
-PostgreSQL 17
-        |
-        v
-grafana_reader
-        |
-        v
-Grafana 13
-        |
-        v
-127.0.0.1:3000
+report aggregati
+      -> importer Python non root
+      -> PostgreSQL 17
+      -> grafana_reader
+      -> Grafana 13 su localhost
 ```
 
-### Importer
-
-L'importer:
-
-- legge `zeek-latest.json`, `suricata-latest.json` e `correlation-latest.json`;
-- verifica le dichiarazioni di privacy;
-- rimuove `source` e `sources`;
-- calcola un hash SHA-256 stabile;
-- inserisce il documento in PostgreSQL come `JSONB`;
-- usa `ON CONFLICT DO NOTHING` per l'idempotenza.
-
-Il container viene eseguito come UID/GID `10001:10001`, con filesystem read-only, `cap_drop: ALL`, `no-new-privileges` e report montati in sola lettura.
-
-### PostgreSQL
-
-Realizzati:
-
-```text
-docker/database/init/001-schema.sql
-docker/database/002-grafana-reader.sql
-```
-
-La tabella `report_imports` usa un vincolo univoco su `(report_kind, content_sha256)`. La vista `latest_report_imports` restituisce il report più recente per tipo.
-
-PostgreSQL usa il volume `postgres_data` e non pubblica la porta `5432` sull'host.
-
-### Grafana
-
-Grafana usa provisioning versionato per datasource e dashboard.
-
-Il datasource si collega con l'account PostgreSQL dedicato `grafana_reader`, configurato in sola lettura.
-
-La dashboard è raggiungibile soltanto tramite:
-
-```text
-http://127.0.0.1:3000
-```
-
-Il backend Docker è una rete `internal`; Grafana possiede inoltre una rete `frontend` separata per il binding locale.
-
-### Dati verificati
-
-Il primo collaudo ha usato campioni sintetici della fase 9.
-
-PostgreSQL contiene tre importazioni:
-
-```text
-zeek         c099a80904a2
-suricata     124fb2b03eb6
-correlation  0712ed6b8d67
-```
-
-Dashboard:
-
-```text
-Eventi Zeek validi:       4
-Eventi Suricata validi:   8
-Eventi correlati:         5
-Delta temporale medio:    0,440 s
-```
-
-Una seconda esecuzione dell'importer non ha creato duplicati.
+Verificati volume persistente, importazione idempotente, account read-only, provisioning automatico, reti Docker separate e binding Grafana soltanto su `127.0.0.1:3000`.
 
 ![Dashboard Grafana](images/10-grafana-dashboard.svg)
 
+Report pubblico: `samples/10-database-dashboard-docker-report.md`.
+
+## Fase 11A - hardening completato
+
+Completata e verificata il 31 luglio 2026.
+
+### Artefatti aggiunti
+
 ```text
-Guida:           docs/steps/10-database-dashboard-docker.md
-Report pubblico: samples/10-database-dashboard-docker-report.md
+scripts/hardening_audit.py
+configs/sysctl/99-security-gateway-hardening.conf
+samples/11-hardening-report.md
+docs/images/11-hardening-summary.svg
 ```
+
+### Risultati principali
+
+```text
+failed systemd units:        0
+IPv4 forwarding:             enabled
+rp_filter:                   loose mode
+accept ICMP redirects:       disabled
+send ICMP redirects:         disabled
+source routing:              disabled
+martian logging:             enabled
+SYN cookies:                 enabled
+SSH listener:                absent
+Avahi / UDP 5353:            disabled
+Docker socket:               restricted
+world-writable sensitive:    none found
+automatic security updates:  enabled
+```
+
+Sono stati inoltre risolti due problemi operativi reali:
+
+1. `logrotate.service` falliva a causa di una configurazione Suricata di backup lasciata nella directory attiva;
+2. `virtualbox.service` falliva perché Secure Boot rifiutava `vboxdrv`; VirtualBox non era necessario ed è stato disabilitato senza indebolire Secure Boot.
+
+Dopo il sysctl hardening sono stati verificati routing, gateway upstream, Internet e DNS.
+
+![Riepilogo hardening](images/11-hardening-summary.svg)
+
+Report pubblico: `samples/11-hardening-report.md`.
 
 ## Stato corrente
 
@@ -197,33 +128,24 @@ Report pubblico: samples/10-database-dashboard-docker-report.md
 | 8. Zeek | COMPLETATA |
 | 9. Python | COMPLETATA |
 | 10. Docker | COMPLETATA |
-| 11. Test e hardening | PROSSIMA |
+| 11A. Hardening | VERIFICATA |
+| 11B. Backup / restore | DA COLLAUDARE |
 
 ## Prossimi passi immediati
 
-Passare alla fase 11 e verificare, nell'ordine:
+Per chiudere anche la parte backup/recovery della fase 11:
 
-1. arresto non distruttivo dello stack;
-2. riavvio di PostgreSQL e Grafana;
-3. persistenza delle tre importazioni;
-4. nuovo report reale dopo una sessione autorizzata;
-5. backup PostgreSQL con `pg_dump`;
-6. ripristino in un database di prova;
-7. controllo finale delle porte pubblicate;
-8. controllo di reti, capability e privilegi dei container;
-9. hardening e rollback finale;
-10. verifica conclusiva di privacy e documentazione.
+1. creare un backup PostgreSQL con `pg_dump`;
+2. verificare il dump;
+3. ripristinarlo in un database di prova;
+4. verificare conteggi e schema dopo il restore;
+5. documentare recovery e smontaggio;
+6. ripetere un test end-to-end dopo il ripristino;
+7. aggiornare lo stato soltanto dopo prova reale.
 
-## Report pubblici e privati
+## Materiale pubblico e privato
 
-Nel repository pubblico:
-
-- guide revisionate;
-- configurazioni parametrizzate;
-- script commentati;
-- report principali anonimizzati;
-- campioni sintetici;
-- screenshot revisionati.
+Nel repository pubblico restano guide, configurazioni parametrizzate, script commentati, report anonimizzati e immagini revisionate.
 
 Restano locali e ignorati da Git:
 
@@ -233,4 +155,4 @@ docker/.env
 docker/data/
 ```
 
-Non pubblicare password, token, MAC, PCAP grezzi, log integrali, query DNS personali, SNI TLS, certificati, valore di `digest_salt`, password PostgreSQL/Grafana o traffico di terzi.
+Non pubblicare password, token, MAC reali, PCAP grezzi, log integrali, query DNS personali, SNI TLS, certificati o credenziali PostgreSQL/Grafana.
